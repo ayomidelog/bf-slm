@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+bf
+bf_pidgin
+*.o
+*.c
