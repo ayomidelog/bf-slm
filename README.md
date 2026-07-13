@@ -2,7 +2,7 @@
 
 > *Technically* a language model. Please do not put this on your resume.
 
-A character-level bigram/trigram language model written entirely in Brainfuck, with a Python interpreter, a fast C interpreter, and a Python "training pipeline" to generate it. Now with a **Nigerian Pidgin** edition.
+A character-level bigram/trigram language model written entirely in Brainfuck, with a Python interpreter, a fast C interpreter, and a unified Python training pipeline. Now with a **Nigerian Pidgin** edition.
 
 ## What Is This?
 
@@ -16,52 +16,55 @@ A tiny autoregressive language model that:
 
 | File | Description |
 |------|-------------|
-| `slm.bf` | Original bigram model trained on English (~7K instructions) |
-| `slm_pidgin.bf` | Trigram model trained on Nigerian Pidgin (~277K instructions) |
-| `slm_pidgin_v4.bf` | V4 trigram with bigger corpus and improved entropy (~370K instructions) |
+| `train.py` | Unified training pipeline — bigram & trigram modes |
 | `interpreter.py` | Python Brainfuck interpreter with debug mode |
-| `bf.c` | Fast C Brainfuck interpreter (~100x faster than Python) |
-| `train.py` | Bigram training pipeline: corpus → bigram table → BF code |
-| `train_slm_v4.py` | V4 trigram trainer with temperature/entropy |
+| `bf.c` | Fast C Brainfuck interpreter |
 | `bfcc.py` | BF to C compiler + gcc runner |
-| `README.md` | You're reading it |
+| `corpus/english.txt` | English training corpus |
+| `corpus/pidgin.txt` | Nigerian Pidgin training corpus (~50K chars) |
+| `slm.bf` | Pre-trained English bigram model |
+| `slm_pidgin.bf` | Pre-trained Pidgin trigram model |
+| `slm_pidgin_v4.bf` | V4 trigram with bigger corpus and entropy |
 
 ## Install
 
-### Python interpreter
-```bash
-echo -n "t" | python3 interpreter.py slm.bf
-```
-
-### C interpreter (fast)
+### C interpreter (recommended)
 ```bash
 gcc -O3 -o bf bf.c
-echo -n "t" | ./bf slm.bf
 ```
+
+### Python interpreter
+No install needed — just run.
 
 ## Usage
 
-### Run the English bigram model
+### Run pre-trained models
 ```bash
-echo -n "t" | ./bf slm.bf       # → "he the the the the t"
-echo -n "c" | ./bf slm.bf       # → "athe the the the the"
+echo -n "t" | ./bf slm.bf                    # English bigram
+echo -n "de" | ./bf slm_pidgin_v4.bf          # Pidgin trigram
 ```
 
-### Run the Pidgin trigram model
+### Train new models
 ```bash
-echo -n "de" | ./bf slm_pidgin.bf    # → "y this ife i dey thell well..."
-echo -n "we" | ./bf slm_pidgin.bf    # → "ll wan you dey to fol well..."
+# English bigram
+python3 train.py --corpus-file corpus/english.txt --mode bigram -o slm.bf
+
+# Pidgin trigram
+python3 train.py --corpus-file corpus/pidgin.txt --mode trigram -o slm_pidgin.bf
+
+# Custom inline corpus
+python3 train.py --corpus "hello world " --mode bigram -o custom.bf
 ```
 
-### Run the V4 Pidgin model
-```bash
-echo -n "de" | ./bf slm_pidgin_v4.bf
-echo -n "ab" | ./bf slm_pidgin_v4.bf
+### train.py options
 ```
-
-### Retrain with a custom corpus
-```bash
-python3 train.py --corpus "your text here"
+--corpus-file FILE    Path to corpus text file
+--corpus TEXT         Inline corpus string
+--mode bigram|trigram Model mode (default: bigram)
+-k, --candidates N    Max candidates per trigram context (default: 3)
+-s, --steps N         Generation steps (default: 20 bigram, 60 trigram)
+-o, --output FILE     Output .bf file
+--verify              Print simulated outputs
 ```
 
 ### Debug mode
@@ -69,45 +72,42 @@ python3 train.py --corpus "your text here"
 echo -n "t" | python3 interpreter.py slm.bf --debug
 ```
 
-## Performance
-
-| Model | Python | C | Speedup |
-|-------|--------|---|---------|
-| Bigram (7K instructions) | 0.485s | 0.011s | 44x |
-| Trigram Pidgin (277K instructions) | 30.0s | 0.3s | 100x |
+### BF to C compiler
+```bash
+python3 bfcc.py slm.bf                # compile + run
+python3 bfcc.py slm.bf --c-only       # emit .c file
+python3 bfcc.py slm.bf --compile-only  # compile to binary
+```
 
 ## How It Works
 
 ### Bigram Model
-Predicts the next character based solely on the current character. From the training corpus:
+Predicts the next character based solely on the current character:
 - `t` → `h` (most common follower)
 - `h` → `e`
 - `e` → ` ` (space)
-- ` ` → `t`
 
 ### Trigram Model
-Uses 2-character context (previous + current) for better predictions:
-- `('w','e')` → `l` ("we" → "well")
+Uses 2-character context for better predictions:
 - `('d','e')` → `y` ("de" → "dey")
-- `(' ','d')` → `e` (" d" → "dey")
+- `(' ','a')` → `b` (" a" → "abeg")
 
 ### Temperature/Entropy
-V4 stores top-3 candidates per context and uses entropy-based selection to break deterministic loops.
+The trigram model stores top-K candidates per context and uses entropy-based selection to break deterministic loops, producing more natural-sounding output.
 
-### C Interpreter
-- Comment-aware instruction loader (strips `;` lines)
-- Optimized bracket map precomputation
-- Direct `unsigned char` tape operations
-- ~100x faster than the Python interpreter
+## Performance
+
+| Model | Python | C | Speedup |
+|-------|--------|---|---------|
+| Bigram | ~0.5s | ~0.01s | ~50x |
+| Trigram | ~30s+ | ~1-3s | ~30x |
 
 ## Fun Facts
 
-- The bigram program has **7,915 instructions** encoding 17 transitions
-- The trigram pidgin program has **277,904 instructions** encoding 385 transitions with temperature
-- Each generation step in the trigram model runs millions of BF operations
+- This is technically autoregressive generation — the same paradigm as GPT
+- GPT has ~175 billion parameters. This has ~17 (bigram) or ~400 (trigram)
 - The entire bigram model fits in 7 cells of a 60,000-cell tape
-- This is technically autoregressive generation, the same paradigm as GPT
-- GPT has ~175 billion parameters. This has 17 (bigram) or 385 (trigram).
+- Each trigram generation step runs millions of BF operations
 
 ## Disclaimer
 

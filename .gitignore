@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
+*.o
 bf
 bf_pidgin
-*.o
-*.c
+*.tmp
+/tmp/
